@@ -33,6 +33,8 @@
 #include "Link.h"
 #include "Leds.h"
 
+#include <HardwareSerial.h>
+
 Link downlink(0, Serial1);
 Link uplink1(1, Serial2);
 Link uplink2(2, Serial3);
@@ -48,6 +50,11 @@ bool camLightOn = false;
 float battPerc = 1;
 float battAmps = 0;
 
+#define UART_MODEM_RXRTSE   (uint8_t)0x08
+#define UART_MODEM_TXRTSPOL   (uint8_t)0x04
+#define UART_MODEM_TXRTSE   (uint8_t)0x02
+#define UART_MODEM_TXCTSE   (uint8_t)0x01
+
 void setup() {
   // USB setup interface
   Serial.begin(115200);
@@ -58,6 +65,10 @@ void setup() {
   Serial1.begin(hwBaudSerial1);
   Serial2.begin(hwBaudSerial2);
   Serial3.begin(hwBaudSerial3);
+//  UART0_MODEM = UART_MODEM_RXRTSE | UART_MODEM_TXCTSE;
+//  UART1_MODEM = UART_MODEM_RXRTSE | UART_MODEM_TXCTSE;
+//  UART2_MODEM = UART_MODEM_RXRTSE | UART_MODEM_TXCTSE;
+
   downlink.begin(airBaudSerial1);
   uplink1.begin(airBaudSerial2);
   uplink1.begin(airBaudSerial3);
@@ -96,10 +107,14 @@ void loop() {
     if(downlink.write(&msg))
       on_tx(0, &msg);
   }
-    
+
   while(Serial.available())
     consolePut(Serial.read());
     
+  downlink.loop();
+  uplink1.loop();
+  uplink2.loop();
+  
   loop_led();
 }
 

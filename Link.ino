@@ -30,18 +30,17 @@ bool Link::read(mavlink_message_t* dst, mavlink_status_t* status) {
 }
 
 bool Link::write(mavlink_message_t* src) {
-//  if (!pushMessageToStats(src))
-//    return false;
-    
-  // TODO CTS/RTS
-  // TODO don't send more then X bytes at a time
-  uint8_t buf[mavlink_msg_get_send_buffer_length(src)];
-  uint16_t len = mavlink_msg_to_send_buffer(buf, src);
-  _stream.write(buf, len);
-  
-  // TODO return false if the message was not sent (completely). The caller must call again with the same message (unless a newer message arrives).
-  // TODO the stack remembers the message and the send position and tries to complete the failing message on the bus. 
-  //      this allows for fast & tight loops at the expense of some overhead of tx buffer management. might reduce packet loss. (how high is it?)
+
+  int srcBytes = mavlink_msg_get_send_buffer_length(src);
+
+  if (srcBytes > (LINK_TXBUFFSIZE - txbufSize)) {
+    return false;
+  }
+
+  uint8_t buf[srcBytes];
+  uint16_t len = mavlink_msg_to_send_buffer(&txbuf[txbufSize], src);
+  txbufSize += len;
+
   return true;
 }
 
@@ -122,4 +121,21 @@ void Link::updateQutas() {
   }
 }
 
+bool Link::loop() {
+  if (txbufSize == 0)
+    return false;
 
+  // check RTS of remote party first
+  int len = min(txbufSize, LINK_TX_BURST);
+  _stream.write(txbufStart, len);
+
+  txbufStart = &txbufStart[len];
+  txbufSize -= len;
+
+  if (txbufSize > 0)
+    return true;
+
+  txbufStart = &txbuf[0];
+
+  return false;
+}
